@@ -1,19 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
+  Building2,
   CalendarClock,
   Check,
   CircleDollarSign,
   ClipboardList,
+  Clock3,
+  Filter,
+  Globe2,
   LogOut,
   Mail,
   MessageSquarePlus,
+  Phone,
   Plus,
   RefreshCw,
   Search,
+  Send,
   ShieldCheck,
-  Trash2,
-  UserRound
+  Trash2
 } from 'lucide-react';
 import './styles.css';
 
@@ -80,11 +85,98 @@ function shortDate(value) {
   }).format(new Date(value));
 }
 
+function PublicLeadCapture({ onBack }) {
+  const [lead, setLead] = useState(emptyLead);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  function update(field, value) {
+    setLead((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...lead, value: Number(lead.value || 0) })
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.message || 'Could not submit lead');
+      setLead(emptyLead);
+      setSent(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="login-shell">
+      <form className="login-panel lead-capture-panel" onSubmit={submit}>
+        <div className="panel-switch">
+          <button className="switch-button" type="button" onClick={onBack}>
+            Admin login
+          </button>
+          <span>Website form</span>
+        </div>
+        <div className="brand-mark capture">
+          <Globe2 size={32} />
+        </div>
+        <h1>Request a Callback</h1>
+        <p>New website enquiry</p>
+
+        <div className="form-grid compact">
+          <label>
+            Name
+            <input required value={lead.name} onChange={(event) => update('name', event.target.value)} />
+          </label>
+          <label>
+            Email
+            <input required type="email" value={lead.email} onChange={(event) => update('email', event.target.value)} />
+          </label>
+          <label>
+            Phone
+            <input value={lead.phone} onChange={(event) => update('phone', event.target.value)} />
+          </label>
+          <label>
+            Company
+            <input value={lead.company} onChange={(event) => update('company', event.target.value)} />
+          </label>
+        </div>
+        <label>
+          Project details
+          <textarea required value={lead.message} onChange={(event) => update('message', event.target.value)} />
+        </label>
+
+        {sent ? <div className="success-text">Lead submitted to CRM.</div> : null}
+        {error ? <div className="error-text">{error}</div> : null}
+
+        <button className="primary-action" type="submit" disabled={loading}>
+          <Send size={18} />
+          {loading ? 'Submitting' : 'Submit enquiry'}
+        </button>
+      </form>
+    </main>
+  );
+}
+
 function Login({ onLogin }) {
   const [email, setEmail] = useState('admin@crm.local');
   const [password, setPassword] = useState('admin12345');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [view, setView] = useState('admin');
+
+  if (view === 'capture') {
+    return <PublicLeadCapture onBack={() => setView('admin')} />;
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -110,6 +202,12 @@ function Login({ onLogin }) {
   return (
     <main className="login-shell">
       <form className="login-panel" onSubmit={submit}>
+        <div className="panel-switch">
+          <span>Admin login</span>
+          <button className="switch-button" type="button" onClick={() => setView('capture')}>
+            Website form
+          </button>
+        </div>
         <div className="brand-mark">
           <ShieldCheck size={32} />
         </div>
@@ -142,6 +240,28 @@ function Stat({ icon: Icon, label, value }) {
       <Icon size={22} />
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function PipelineStrip({ stats, activeStatus, onChange }) {
+  return (
+    <div className="pipeline-strip">
+      <button className={activeStatus === 'all' ? 'selected' : ''} type="button" onClick={() => onChange('status', 'all')}>
+        <span>All</span>
+        <strong>{stats?.total ?? 0}</strong>
+      </button>
+      {Object.entries(statusLabels).map(([status, label]) => (
+        <button
+          className={activeStatus === status ? 'selected' : ''}
+          key={status}
+          type="button"
+          onClick={() => onChange('status', status)}
+        >
+          <span>{label}</span>
+          <strong>{stats?.byStatus?.[status] ?? 0}</strong>
+        </button>
+      ))}
     </div>
   );
 }
@@ -212,29 +332,43 @@ function LeadForm({ onCreate, disabled }) {
 function LeadList({ leads, selectedId, onSelect, onDelete }) {
   return (
     <div className="lead-list">
+      <div className="lead-table-head">
+        <span>Lead</span>
+        <span>Status</span>
+        <span>Source</span>
+        <span>Value</span>
+      </div>
       {leads.map((lead) => (
-        <button
+        <div
           className={`lead-row ${lead.id === selectedId ? 'active' : ''}`}
           key={lead.id}
-          type="button"
-          onClick={() => onSelect(lead.id)}
         >
-          <span className={`status-dot ${lead.status}`} />
-          <span className="lead-main">
-            <strong>{lead.name}</strong>
-            <small>{lead.company || lead.email}</small>
-          </span>
+          <button className="lead-select" type="button" onClick={() => onSelect(lead.id)}>
+            <span className={`status-dot ${lead.status}`} />
+            <span className="lead-main">
+              <strong>{lead.name}</strong>
+              <small>{lead.company || lead.email}</small>
+            </span>
+          </button>
           <span className={`status-pill ${lead.status}`}>{statusLabels[lead.status]}</span>
+          <span className="source-chip">{lead.source}</span>
           <span className="lead-value">{currency(lead.value)}</span>
-          <Trash2
+          <button
             className="delete-icon"
-            size={18}
+            type="button"
+            title="Delete lead"
             onClick={(event) => {
               event.stopPropagation();
               onDelete(lead.id);
             }}
-          />
-        </button>
+          >
+            <Trash2 size={18} />
+          </button>
+          <small className="lead-date">
+            <Clock3 size={14} />
+            {shortDate(lead.createdAt)}
+          </small>
+        </div>
       ))}
       {leads.length === 0 ? <div className="empty-state">No leads match the current filters.</div> : null}
     </div>
@@ -272,13 +406,19 @@ function LeadDetail({ lead, onStatus, onAddNote, onToggleNote }) {
           <h2>{lead.name}</h2>
           <p>{lead.company || 'Individual lead'}</p>
         </div>
-        <select value={lead.status} onChange={(event) => onStatus(lead.id, event.target.value)}>
-          {Object.entries(statusLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
+      </div>
+
+      <div className="status-segment" aria-label="Lead status">
+        {Object.entries(statusLabels).map(([value, label]) => (
+          <button
+            className={lead.status === value ? 'active' : ''}
+            key={value}
+            type="button"
+            onClick={() => onStatus(lead.id, value)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       <div className="contact-block">
@@ -287,8 +427,12 @@ function LeadDetail({ lead, onStatus, onAddNote, onToggleNote }) {
           {lead.email}
         </span>
         <span>
-          <UserRound size={16} />
+          <Phone size={16} />
           {lead.phone || 'No phone'}
+        </span>
+        <span>
+          <Building2 size={16} />
+          {lead.company || 'No company'}
         </span>
         <span>
           <CircleDollarSign size={16} />
@@ -440,6 +584,7 @@ function Dashboard({ token, user, onLogout }) {
         <div>
           <span className="eyebrow">Mini CRM</span>
           <h1>Client Lead Management</h1>
+          <p className="topbar-subtitle">Lead intake, follow-ups, and status tracking</p>
         </div>
         <div className="admin-chip">
           <ShieldCheck size={17} />
@@ -464,6 +609,8 @@ function Dashboard({ token, user, onLogout }) {
         <div className="main-column">
           <LeadForm onCreate={createNewLead} disabled={loading} />
 
+          <PipelineStrip stats={stats} activeStatus={filters.status} onChange={applyFilter} />
+
           <div className="filters">
             <label className="search-box">
               <Search size={17} />
@@ -473,6 +620,10 @@ function Dashboard({ token, user, onLogout }) {
                 placeholder="Search leads"
               />
             </label>
+            <div className="filter-label">
+              <Filter size={17} />
+              Filters
+            </div>
             <select value={filters.status} onChange={(event) => applyFilter('status', event.target.value)}>
               <option value="all">All statuses</option>
               {Object.entries(statusLabels).map(([value, label]) => (
