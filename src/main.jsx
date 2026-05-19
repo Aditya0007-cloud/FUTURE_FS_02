@@ -39,9 +39,15 @@ const emptyLead = {
   message: ''
 };
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+
+function apiUrl(path) {
+  return `${API_BASE_URL}${path}`;
+}
+
 function apiClient(token, onLogout) {
   async function request(path, options = {}) {
-    const response = await fetch(path, {
+    const response = await fetch(apiUrl(path), {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -101,7 +107,7 @@ function PublicLeadCapture({ onBack }) {
     setError('');
 
     try {
-      const response = await fetch('/api/leads', {
+      const response = await fetch(apiUrl('/api/leads'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...lead, value: Number(lead.value || 0) })
@@ -184,7 +190,7 @@ function Login({ onLogin }) {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
